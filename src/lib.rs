@@ -1,3 +1,18 @@
+//! Basic library for doing 3D diffs to check if two triangular meshes are the same,
+//! or how different they are.
+//! # Example
+//! ```
+//! // Let's diff these two meshes.
+//! let mesh0 = camino::Utf8Path::new("testdata/cow-nonormals.obj");
+//! let mesh1 = camino::Utf8Path::new("testdata/teapot.obj");
+//!
+//! // Run the diff:
+//! let difference = thirty_thirty::diff(mesh0, mesh1).unwrap();
+//!
+//! // Check the results.
+//! assert_eq!(difference.max_abs_diff, 4.3111653);
+//! assert_eq!(difference.mean_abs_error, 2.1293483);
+//! ```
 use camino::Utf8Path;
 use mesh_to_sdf::{AccelerationMethod, Topology, generate_sdf};
 use parry3d::shape::TriMesh;
@@ -14,6 +29,19 @@ pub enum Error {
 }
 
 /// Get a geometric difference between the meshes in these two files.
+/// # Example
+/// ```
+/// // Let's diff these two meshes.
+/// let mesh0 = camino::Utf8Path::new("testdata/cow-nonormals.obj");
+/// let mesh1 = camino::Utf8Path::new("testdata/teapot.obj");
+///
+/// // Run the diff:
+/// let difference = thirty_thirty::diff(mesh0, mesh1).unwrap();
+///
+/// // Check the results.
+/// assert_eq!(difference.max_abs_diff, 4.3111653);
+/// assert_eq!(difference.mean_abs_error, 2.1293483);
+/// ```
 pub fn diff(file1: &Utf8Path, file2: &Utf8Path) -> Result<Metric, Error> {
     let mesh1 = load_trimesh(file1.as_str(), 3.0).map_err(Error::CouldNotOpenFile)?;
     log::debug!(
