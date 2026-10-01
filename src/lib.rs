@@ -65,6 +65,7 @@ fn to_array(v: &Vec3) -> [f32; 3] {
 
 /// Get a geometric difference between these two meshes.
 fn diff_trimeshes(mesh1: TriMesh, mesh2: TriMesh) -> Result<Metric, Error> {
+    let (mesh1, mesh2) = reorient(mesh1, mesh2);
     let mesh1_vertices: Vec<[f32; 3]> = mesh1.vertices().iter().map(to_array).collect();
     let mesh2_vertices: Vec<[f32; 3]> = mesh2.vertices().iter().map(to_array).collect();
 
@@ -101,6 +102,12 @@ fn diff_trimeshes(mesh1: TriMesh, mesh2: TriMesh) -> Result<Metric, Error> {
         max_abs_diff: max_diff,
         mean_abs_error: mean_diff,
     })
+}
+
+/// Reorient these meshes so they're facing the same way.
+fn reorient(mesh1: TriMesh, mesh2: TriMesh) -> (TriMesh, TriMesh) {
+    // TODO: Actually reorient them.
+    (mesh1, mesh2)
 }
 
 /// Metric showing how different the two meshes were.

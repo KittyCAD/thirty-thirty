@@ -26,6 +26,18 @@ impl TestCase {
     }
 }
 
+/// Two identical meshes that have been rotated should have a difference metric of 0.
+#[test]
+fn rotation_indifference() {
+    let tri1 = Utf8Path::new("testdata/triangle1.obj");
+    let tri2 = Utf8Path::new("testdata/triangle2.obj");
+    let metric = crate::diff(tri1, tri2).unwrap();
+    assert_eq!(metric, Metric::ZERO);
+}
+
+/// Basic properties:
+/// - any identical files should have difference metric of 0.
+/// - any non-identical files should have a difference metric > 0.
 #[test]
 fn basic() {
     let all = TestCase::all();
