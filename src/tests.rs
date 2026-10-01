@@ -1,6 +1,6 @@
 use camino::Utf8Path;
 
-use crate::Metric;
+use crate::{Config, Metric};
 
 #[derive(Eq, PartialEq, Debug)]
 enum TestCase {
@@ -26,13 +26,38 @@ impl TestCase {
     }
 }
 
-/// Two identical meshes that have been rotated should have a difference metric of 0.
+/// Two identical meshes that have been rotated should have a difference metric of 0,
+/// IF the opt-in option for reorienting models is true.
 #[test]
 fn rotation_indifference() {
     let tri1 = Utf8Path::new("testdata/triangle1.obj");
     let tri2 = Utf8Path::new("testdata/triangle2.obj");
-    let metric = crate::diff(tri1, tri2).unwrap();
-    assert_eq!(metric, Metric::ZERO);
+    let metric = crate::diff_with_config(
+        tri1,
+        tri2,
+        Config {
+            reorient: true,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert!(
+        metric.mean_abs_error < 0.000001,
+        "Identical meshes that are rotated should have approximately zero mean difference when using `reorient: true`, but they actually had {}",
+        metric.mean_abs_error,
+    );
+}
+
+/// Two identical meshes that have been rotated should have a positive difference metric.
+#[test]
+fn rotation_difference() {
+    let tri1 = Utf8Path::new("testdata/triangle1.obj");
+    let tri2 = Utf8Path::new("testdata/triangle2.obj");
+    let metric = crate::diff_with_config(tri1, tri2, Config::default()).unwrap();
+    assert!(
+        metric.mean_abs_error > 1.0,
+        "Identical meshes that are rotated should be considered different",
+    );
 }
 
 /// Basic properties:
