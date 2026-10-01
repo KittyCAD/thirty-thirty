@@ -4,3 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+camino = "1.2.6"
+log = "0.4.34"
+mesh_to_sdf = "0.4.0"
+parry3d = "0.28"
+rs-read-trimesh = "2.0.10"
+thiserror = "2.0.21"
