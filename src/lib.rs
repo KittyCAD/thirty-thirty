@@ -66,21 +66,31 @@ fn diff_trimeshes(mesh1: TriMesh, mesh2: TriMesh) -> Result<Metric, Error> {
 
     let mesh1_indices: Vec<u32> = mesh1.indices().iter().flatten().copied().collect();
 
+    // For every point in mesh2, find its distance from the surface of mesh1.
     let distances: Vec<f32> = generate_sdf(
+        // Generate a SDF from these vertices/triangles:
         &mesh1v,
         Topology::TriangleList(Some(&mesh1_indices)),
-        &mesh2v, // Query points must match the vertex primitive shape types
-        AccelerationMethod::RtreeBvh, // Optimal blend for processing dense geometry
+        // Then query these points against the SDF above.
+        &mesh2v,
+        // Chosen arbitrarily based on what a hungry ghost in a jar said to do.
+        AccelerationMethod::RtreeBvh,
     );
 
+    // Should not happen, does not have a meaningful distance,
+    // so tell the user and the user can handle it.
     if distances.is_empty() {
         return Err(Error::EmptyDistances);
     }
 
-    let (max_diff, absolute_sum) = distances
-        .iter()
-        .map(|dist| dist.abs())
-        .fold((0.0, 0.0), |(diff, sum), e| (f32::max(diff, e), sum + e));
+    // From those distances, compute some useful metrics the user
+    // might want to know.
+    let (max_diff, absolute_sum) = distances.iter().map(|dist| dist.abs()).fold(
+        (0.0, 0.0),
+        |(max_diff, absolute_sum), distance| {
+            (f32::max(max_diff, distance), absolute_sum + distance)
+        },
+    );
     let mean_diff = absolute_sum / distances.len() as f32;
 
     Ok(Metric {
