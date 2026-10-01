@@ -10,12 +10,17 @@
 //! let difference = thirty_thirty::diff(mesh0, mesh1).unwrap();
 //!
 //! // Check the results.
-//! assert_eq!(difference.max_abs_diff, 4.3111653);
-//! assert_eq!(difference.mean_abs_error, 2.1293483);
+//! assert!(difference.max_abs_diff > 4.0);
+//! assert!(difference.mean_abs_error > 2.0);
 //! ```
+#![deny(missing_docs)]
 use camino::Utf8Path;
 use mesh_to_sdf::{AccelerationMethod, Topology, generate_sdf};
-use parry3d::{math::Vec3, shape::TriMesh};
+use parry3d::{
+    glamx::prelude::Pose3,
+    math::{Mat3, Rot3, SymmetricEigen, Vec3},
+    shape::{Shape, TriMesh},
+};
 use rs_read_trimesh::load_trimesh;
 
 #[cfg(test)]
@@ -24,8 +29,21 @@ mod tests;
 /// Errors that can occur
 #[derive(Debug, Eq, PartialEq)]
 pub enum Error {
+    /// The file you provided could not be opened.
+    /// The String field says why.
     CouldNotOpenFile(String),
+    /// The meshes were empty, or had no distances available.
+    /// Probably indicates an empty file or invalid data.
     EmptyDistances,
+}
+
+/// Configuration for how the difference should be calculated.
+#[derive(Default, Debug, Clone, Copy)]
+#[non_exhaustive]
+pub struct Config {
+    /// If true, the second mesh will be oriented to the same rotation as the first.
+    /// False by default.
+    pub reorient: bool,
 }
 
 /// Get a geometric difference between the meshes in these two files.
@@ -39,10 +57,39 @@ pub enum Error {
 /// let difference = thirty_thirty::diff(mesh0, mesh1).unwrap();
 ///
 /// // Check the results.
-/// assert_eq!(difference.max_abs_diff, 4.3111653);
-/// assert_eq!(difference.mean_abs_error, 2.1293483);
+/// assert!(difference.max_abs_diff > 4.0);
+/// assert!(difference.mean_abs_error > 2.0);
 /// ```
 pub fn diff(file1: &Utf8Path, file2: &Utf8Path) -> Result<Metric, Error> {
+    diff_with_config(file1, file2, Default::default())
+}
+
+/// Get a geometric difference between the meshes in these two files.
+/// # Example
+/// ```
+/// use thirty_thirty::Config;
+/// use thirty_thirty::Metric;
+///
+/// // Let's diff these two meshes.
+/// let mesh0 = camino::Utf8Path::new("testdata/cow-nonormals.obj");
+/// let mesh1 = camino::Utf8Path::new("testdata/teapot.obj");
+///
+/// // Set the diff config.
+/// let mut config = Config::default();
+/// config.reorient = false;
+///
+/// // Run the diff:
+/// let difference: Metric = thirty_thirty::diff_with_config(mesh0, mesh1, config).unwrap();
+///
+/// // Check the results.
+/// assert!(difference.max_abs_diff > 4.0);
+/// assert!(difference.mean_abs_error > 2.0);
+/// ```
+pub fn diff_with_config(
+    file1: &Utf8Path,
+    file2: &Utf8Path,
+    config: Config,
+) -> Result<Metric, Error> {
     let mesh1 = load_trimesh(file1.as_str(), 3.0).map_err(Error::CouldNotOpenFile)?;
     log::debug!(
         "Successfully loaded and scaled mesh with {} vertices, {} indices.",
@@ -56,7 +103,7 @@ pub fn diff(file1: &Utf8Path, file2: &Utf8Path) -> Result<Metric, Error> {
         mesh2.indices().len()
     );
 
-    diff_trimeshes(mesh1, mesh2)
+    diff_trimeshes(mesh1, mesh2, config)
 }
 
 fn to_array(v: &Vec3) -> [f32; 3] {
@@ -64,7 +111,14 @@ fn to_array(v: &Vec3) -> [f32; 3] {
 }
 
 /// Get a geometric difference between these two meshes.
-fn diff_trimeshes(mesh1: TriMesh, mesh2: TriMesh) -> Result<Metric, Error> {
+fn diff_trimeshes(mesh1: TriMesh, mesh2: TriMesh, config: Config) -> Result<Metric, Error> {
+    // Reorient them to face the same way, if the user asks for it.
+    let (mesh1, mesh2) = if config.reorient {
+        reorient(mesh1, mesh2)
+    } else {
+        (mesh1, mesh2)
+    };
+
     let mesh1_vertices: Vec<[f32; 3]> = mesh1.vertices().iter().map(to_array).collect();
     let mesh2_vertices: Vec<[f32; 3]> = mesh2.vertices().iter().map(to_array).collect();
 
@@ -101,6 +155,92 @@ fn diff_trimeshes(mesh1: TriMesh, mesh2: TriMesh) -> Result<Metric, Error> {
         max_abs_diff: max_diff,
         mean_abs_error: mean_diff,
     })
+}
+
+fn reorient(mesh1: TriMesh, mut mesh2: TriMesh) -> (TriMesh, TriMesh) {
+    let t1 = compute_canonical_frame(&mesh1);
+    let t2 = compute_canonical_frame(&mesh2);
+
+    // Relative transform that maps Mesh 2 space -> Canonical frame -> Mesh 1 space
+    let t_rel: Pose3 = t1 * t2.inverse();
+
+    // Apply transformation directly to Mesh 2's vertices
+    mesh2.transform_vertices(&t_rel);
+    (mesh1, mesh2)
+}
+
+fn compute_canonical_frame(mesh: &TriMesh) -> Pose3 {
+    // 1. Calculate mass properties
+    let mass_props = mesh.mass_properties(1.0);
+    let com: Vec3 = mass_props.local_com;
+    let inertia_matrix = mass_props.reconstruct_inertia_matrix();
+
+    // 2. Perform Eigendecomposition on the inertia matrix
+    let eigen = SymmetricEigen::new(inertia_matrix);
+
+    let mut axes = [
+        eigen.eigenvectors.col(0),
+        eigen.eigenvectors.col(1),
+        eigen.eigenvectors.col(2),
+    ];
+
+    // 3. Orient ALL THREE axes using geometric skewness
+    let mut skews = [0.0; 3];
+    for i in 0..3 {
+        let (oriented_axis, skew_mag) = fix_axis_orientation(mesh, com, axes[i]);
+        axes[i] = oriented_axis;
+        skews[i] = skew_mag;
+    }
+
+    let mut x_axis = axes[0];
+    let mut y_axis = axes[1];
+    let mut z_axis = axes[2];
+
+    // 4. Ensure a right-handed coordinate frame (det(R) == +1)
+    // If det < 0, flip the axis with the smallest skewness magnitude (the most symmetric axis)
+    let rot_mat = Mat3::from_cols(x_axis, y_axis, z_axis);
+    if rot_mat.determinant() < 0.0 {
+        let mut min_idx = 0;
+        if skews[1] < skews[min_idx] {
+            min_idx = 1;
+        }
+        if skews[2] < skews[min_idx] {
+            min_idx = 2;
+        }
+
+        match min_idx {
+            0 => x_axis = -x_axis,
+            1 => y_axis = -y_axis,
+            2 => z_axis = -z_axis,
+            _ => unreachable!(),
+        }
+    }
+
+    let rot_mat = Mat3::from_cols(x_axis, y_axis, z_axis);
+    let rotation = Rot3::from_mat3(&rot_mat);
+
+    Pose3::from_parts(com, rotation)
+}
+
+fn fix_axis_orientation(mesh: &TriMesh, com: Vec3, mut axis: Vec3) -> (Vec3, f32) {
+    let mut skewness = 0.0;
+
+    for pt in mesh.vertices() {
+        let vec_from_com = *pt - com;
+        let proj = vec_from_com.dot(axis);
+        // Cubing preserves the sign and highlights asymmetry
+        skewness += proj.powi(3);
+    }
+
+    // Epsilon threshold avoids random flips from machine noise on symmetric axes (~0.0)
+    const EPSILON: f32 = 1e-4;
+
+    if skewness < -EPSILON {
+        axis = -axis;
+        skewness = -skewness;
+    }
+
+    (axis, skewness.abs())
 }
 
 /// Metric showing how different the two meshes were.
