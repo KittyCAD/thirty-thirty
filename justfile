@@ -1,7 +1,8 @@
 ci:
     just lint
-    cargo nextest run
     cargo test --doc
+    cargo run --example basic
+    cargo nextest run
 
 lint:
     cargo clippy --tests --benches --examples --all-targets

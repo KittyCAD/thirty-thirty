@@ -2,6 +2,8 @@ use camino::Utf8Path;
 
 use crate::{Config, Metric};
 
+const TEST_EPSILON: f64 = 0.000001;
+
 #[derive(Eq, PartialEq, Debug)]
 enum TestCase {
     Cow,
@@ -42,7 +44,7 @@ fn rotation_indifference() {
     )
     .unwrap();
     assert!(
-        metric.mean_abs_error < 0.000001,
+        metric.mean_abs_error < TEST_EPSILON,
         "Identical meshes that are rotated should have approximately zero mean difference when using `reorient: true`, but they actually had {}",
         metric.mean_abs_error,
     );
@@ -82,11 +84,11 @@ fn basic() {
                     "These two test cases are different, so their difference should be nonzero."
                 );
                 assert!(
-                    metric.max_abs_diff > 0.0,
+                    metric.max_abs_diff > 1.0,
                     "These two test cases are different, so their max absolute difference should be positive."
                 );
                 assert!(
-                    metric.mean_abs_error > 0.0,
+                    metric.mean_abs_error > 1.0,
                     "These two test cases are different, so their mean absolute error should be positive."
                 );
             }

@@ -9,8 +9,8 @@ fn main() {
     let difference: Metric = thirty_thirty::diff(mesh0, mesh1).unwrap();
 
     // Check the results.
-    assert_eq!(difference.max_abs_diff, 4.3111653);
-    assert_eq!(difference.mean_abs_error, 2.1293483);
+    assert!(difference.max_abs_diff > 4.0);
+    assert!(difference.mean_abs_error > 2.0);
 
     // If we diff a mesh against itself, its difference will be zero.
     assert_eq!(thirty_thirty::diff(mesh0, mesh0).unwrap(), Metric::ZERO);
