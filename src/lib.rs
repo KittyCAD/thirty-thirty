@@ -89,13 +89,13 @@ fn diff_trimeshes(mesh1: TriMesh, mesh2: TriMesh) -> Result<Metric, Error> {
 
     // From those distances, compute some useful metrics the user
     // might want to know.
-    let (max_diff, absolute_sum) = distances.iter().map(|dist| dist.abs()).fold(
+    let (max_diff, absolute_sum) = distances.iter().map(|dist| dist.abs() as f64).fold(
         (0.0, 0.0),
         |(max_diff, absolute_sum), distance| {
-            (f32::max(max_diff, distance), absolute_sum + distance)
+            (f64::max(max_diff, distance), absolute_sum + distance)
         },
     );
-    let mean_diff = absolute_sum / distances.len() as f32;
+    let mean_diff = absolute_sum / distances.len() as f64;
 
     Ok(Metric {
         max_abs_diff: max_diff,
@@ -107,9 +107,9 @@ fn diff_trimeshes(mesh1: TriMesh, mesh2: TriMesh) -> Result<Metric, Error> {
 #[derive(Debug, PartialEq)]
 pub struct Metric {
     /// Max absolute deviation
-    pub max_abs_diff: f32,
+    pub max_abs_diff: f64,
     /// Mean absolute error
-    pub mean_abs_error: f32,
+    pub mean_abs_error: f64,
 }
 
 impl Metric {
