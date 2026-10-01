@@ -3,7 +3,11 @@ use mesh_to_sdf::{AccelerationMethod, Topology, generate_sdf};
 use parry3d::shape::TriMesh;
 use rs_read_trimesh::load_trimesh;
 
+#[cfg(test)]
+mod tests;
+
 /// Errors that can occur
+#[derive(Debug, Eq, PartialEq)]
 pub enum Error {
     CouldNotOpenFile(String),
     EmptyDistances,
@@ -58,9 +62,18 @@ fn diff_trimeshes(mesh1: TriMesh, mesh2: TriMesh) -> Result<Metric, Error> {
 }
 
 /// Metric showing how different the two meshes were.
+#[derive(Debug, PartialEq)]
 pub struct Metric {
     /// Max absolute deviation
     pub max_abs_diff: f32,
     /// Mean absolute error
     pub mean_abs_error: f32,
+}
+
+impl Metric {
+    /// Zero distance, i.e. the exact same.
+    pub const ZERO: Self = Self {
+        max_abs_diff: 0.0,
+        mean_abs_error: 0.0,
+    };
 }
