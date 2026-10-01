@@ -15,7 +15,7 @@
 //! ```
 use camino::Utf8Path;
 use mesh_to_sdf::{AccelerationMethod, Topology, generate_sdf};
-use parry3d::shape::TriMesh;
+use parry3d::{math::Vec3, shape::TriMesh};
 use rs_read_trimesh::load_trimesh;
 
 #[cfg(test)]
@@ -59,20 +59,24 @@ pub fn diff(file1: &Utf8Path, file2: &Utf8Path) -> Result<Metric, Error> {
     diff_trimeshes(mesh1, mesh2)
 }
 
+fn to_array(v: &Vec3) -> [f32; 3] {
+    [v.x, v.y, v.z]
+}
+
 /// Get a geometric difference between these two meshes.
 fn diff_trimeshes(mesh1: TriMesh, mesh2: TriMesh) -> Result<Metric, Error> {
-    let mesh1v: Vec<[f32; 3]> = mesh1.vertices().iter().map(|v| [v.x, v.y, v.z]).collect();
-    let mesh2v: Vec<[f32; 3]> = mesh2.vertices().iter().map(|v| [v.x, v.y, v.z]).collect();
+    let mesh1_vertices: Vec<[f32; 3]> = mesh1.vertices().iter().map(to_array).collect();
+    let mesh2_vertices: Vec<[f32; 3]> = mesh2.vertices().iter().map(to_array).collect();
 
-    let mesh1_indices: Vec<u32> = mesh1.indices().iter().flatten().copied().collect();
+    let mesh1_triangle_indices: Vec<u32> = mesh1.indices().iter().flatten().copied().collect();
 
     // For every point in mesh2, find its distance from the surface of mesh1.
     let distances: Vec<f32> = generate_sdf(
         // Generate a SDF from these vertices/triangles:
-        &mesh1v,
-        Topology::TriangleList(Some(&mesh1_indices)),
+        &mesh1_vertices,
+        Topology::TriangleList(Some(&mesh1_triangle_indices)),
         // Then query these points against the SDF above.
-        &mesh2v,
+        &mesh2_vertices,
         // Chosen arbitrarily based on what a hungry ghost in a jar said to do.
         AccelerationMethod::RtreeBvh,
     );
