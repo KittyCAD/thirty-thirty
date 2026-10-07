@@ -24,3 +24,6 @@ parry3d = "0.28"
 rs-read-trimesh = "2.0.10"
 thiserror = "2.0.21"
 
+
+[patch.crates-io]
+rs-read-trimesh = { git = "https://github.com/adamchalmers/rs-read-trimesh", branch = "achalmers/gltf" }
