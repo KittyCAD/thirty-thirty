@@ -17,6 +17,24 @@ pub(crate) fn diff_trimeshes(
     mesh2: TriMesh,
     config: Config,
 ) -> Result<Metric, Error> {
+    // Diff both directions and take the max error from each.
+    // This helps in a case where, say, mesh1 is a subset of mesh2.
+    // You don't want to compare only the points they have in common,
+    // you want to compare all points from both meshes.
+    let m12 = inner_diff_trimeshes(mesh1.clone(), mesh2.clone(), config)?;
+    let m21 = inner_diff_trimeshes(mesh2, mesh1, config)?;
+    Ok(Metric {
+        max_abs_diff: m12.max_abs_diff.max(m21.max_abs_diff),
+        mean_abs_error: m12.mean_abs_error.max(m21.mean_abs_error),
+    })
+}
+
+/// Get a geometric difference between these two meshes.
+pub(crate) fn inner_diff_trimeshes(
+    mesh1: TriMesh,
+    mesh2: TriMesh,
+    config: Config,
+) -> Result<Metric, Error> {
     // Reorient them to face the same way, if the user asks for it.
     let (mesh1, mesh2) = if config.reorient {
         reorient(mesh1, mesh2)

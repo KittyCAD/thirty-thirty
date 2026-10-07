@@ -2,7 +2,7 @@ use camino::Utf8Path;
 
 use crate::{Config, Metric};
 
-const TEST_EPSILON: f64 = 0.000001;
+const TEST_EPSILON: f64 = 0.00001;
 
 #[derive(Eq, PartialEq, Debug)]
 enum ObjTestCase {
@@ -75,20 +75,22 @@ fn gltf_check_identical() {
 
 #[test]
 fn check_subsets() {
-    // This is a subset of the following GLB.
+    // These two GLBs both have a D shape,
+    // but one has a box inside the D,
+    // and one doesn't.
+    //
+    // The `diff` function should detect both presence and absence of the box,
+    // it should not matter which order the two are compared in.
     let d_sans_box = Utf8Path::new("testdata/dshape.glb");
     let d_with_box = Utf8Path::new("testdata/d_with_box.glb");
     let delta1 = crate::diff_with_config(d_sans_box, d_with_box, Config::default()).unwrap();
     let delta2 = crate::diff_with_config(d_with_box, d_sans_box, Config::default()).unwrap();
-    dbg!(&delta1);
-    dbg!(&delta2);
-    let epsilon = 0.01;
     assert!(
-        delta1.max_abs_diff > epsilon,
+        delta1.max_abs_diff > TEST_EPSILON,
         "the presence or absence of the box should matter, but their delta was {delta1:?}"
     );
     assert!(
-        delta2.max_abs_diff > epsilon,
+        delta2.max_abs_diff > TEST_EPSILON,
         "the presence or absence of the box should matter, but their delta was {delta2:?}"
     );
 }
