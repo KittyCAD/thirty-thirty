@@ -5,20 +5,20 @@ use crate::{Config, Metric};
 const TEST_EPSILON: f64 = 0.000001;
 
 #[derive(Eq, PartialEq, Debug)]
-enum TestCase {
+enum ObjTestCase {
     Cow,
     Pumpkin,
     Teapot,
     Teddy,
 }
 
-impl TestCase {
+impl ObjTestCase {
     fn load(&self) -> &'static Utf8Path {
         let s = match self {
-            TestCase::Cow => "testdata/cow-nonormals.obj",
-            TestCase::Pumpkin => "testdata/pumpkin_tall_10k.obj",
-            TestCase::Teapot => "testdata/teapot.obj",
-            TestCase::Teddy => "testdata/teddy.obj",
+            ObjTestCase::Cow => "testdata/cow-nonormals.obj",
+            ObjTestCase::Pumpkin => "testdata/pumpkin_tall_10k.obj",
+            ObjTestCase::Teapot => "testdata/teapot.obj",
+            ObjTestCase::Teddy => "testdata/teddy.obj",
         };
         Utf8Path::new(s)
     }
@@ -62,12 +62,33 @@ fn rotation_difference() {
     );
 }
 
+#[test]
+fn gltf_check_identical() {
+    let tri1 = Utf8Path::new("testdata/triangle1ish.glb");
+    let actual_metric = crate::diff_with_config(tri1, tri1, Config::default()).unwrap();
+    assert_eq!(
+        actual_metric,
+        Metric::ZERO,
+        "identical files should have distance 0"
+    );
+}
+
+#[test]
+fn gltf_check_different() {
+    let tri_glb = Utf8Path::new("testdata/triangle1ish.glb");
+    let d_glb = Utf8Path::new("testdata/dshape.glb");
+
+    // Different models, so their difference should be positive.
+    let actual = crate::diff(tri_glb, d_glb).unwrap().mean_abs_error;
+    assert!(actual > 0.002);
+}
+
 /// Basic properties:
 /// - any identical files should have difference metric of 0.
 /// - any non-identical files should have a difference metric > 0.
 #[test]
 fn basic() {
-    let all = TestCase::all();
+    let all = ObjTestCase::all();
     for t0 in &all {
         for t1 in &all {
             let metric = crate::diff(t0.load(), t1.load()).expect("Diffing these should succeed");
